@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, QVariantAnimation
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, QVariantAnimation, Qt
+from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
@@ -21,8 +22,33 @@ from charging import ChargingPage
 from database import query
 from rates import RateService
 from report import AnalyticsPage
+from reports import ReportsPage
 from settings import SettingsPage
 from vehicles import VehiclePage
+
+
+class CircularProgress(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.value = 0
+        self.setMinimumSize(110, 110)
+
+    def set_value(self, value):
+        self.value = max(0, min(100, int(value)))
+        self.update()
+
+    def paintEvent(self, _event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect().adjusted(10, 10, -10, -10)
+        painter.setPen(QPen(QColor("#223149"), 11))
+        painter.drawArc(rect, 0, 360 * 16)
+
+        grad_pen = QPen(QColor("#4a8dff"), 11)
+        painter.setPen(grad_pen)
+        painter.drawArc(rect, 90 * 16, -int((360 * self.value / 100) * 16))
+        painter.setPen(QColor("#dbe5ff"))
+        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, f"{self.value}%")
 
 
 class AnimatedValueLabel(QLabel):
@@ -52,13 +78,13 @@ class AnimatedValueLabel(QLabel):
 
 
 class StatCard(QFrame):
-    def __init__(self, title, prefix="", suffix=""):
+    def __init__(self, title, prefix="", suffix="", sub="Live"):
         super().__init__()
         self.setObjectName("statCard")
         layout = QVBoxLayout(self)
         self.value = AnimatedValueLabel(prefix, suffix)
         self.title = QLabel(title)
-        self.sub = QLabel("Live")
+        self.sub = QLabel(sub)
         self.sub.setObjectName("subtle")
         layout.addWidget(self.value)
         layout.addWidget(self.title)
@@ -69,24 +95,38 @@ class OverviewPage(QWidget):
     def __init__(self):
         super().__init__()
         root = QVBoxLayout(self)
+        root.setSpacing(14)
         grid = QGridLayout()
         self.total_vehicles = StatCard("Total Vehicles")
-        self.active = StatCard("Active Charging Sessions")
+        self.active = StatCard("Active Charging Sessions", sub="● Live")
         self.available = StatCard("Available Slots")
         self.revenue = StatCard("Total Revenue", prefix="₹")
-        self.energy = StatCard("Today's Energy Delivered", suffix=" kWh")
-        self.rate = StatCard("Current Electricity Rate", prefix="₹", suffix="/kWh")
+        self.energy = StatCard("Today's Energy", suffix=" kWh")
+        self.rate = StatCard("Current Rate", prefix="₹", suffix="/kWh")
         cards = [self.total_vehicles, self.active, self.available, self.revenue, self.energy, self.rate]
         for idx, card in enumerate(cards):
             grid.addWidget(card, idx // 3, idx % 3)
-
-        self.slot_progress = QProgressBar()
-        self.slot_progress.setFormat("Slot Usage %p%")
-        self.blink = QLabel("● Live Charging")
-        self.blink.setObjectName("chargingLive")
         root.addLayout(grid)
-        root.addWidget(self.slot_progress)
-        root.addWidget(self.blink)
+
+        monitor = QFrame()
+        monitor.setObjectName("panel")
+        m_layout = QHBoxLayout(monitor)
+        left = QVBoxLayout()
+        self.live_title = QLabel("Real-time Charging Monitor")
+        self.live_title.setObjectName("sectionTitle")
+        self.battery = QLabel("Battery: 0%")
+        self.speed = QLabel("Speed: 0.0 kW")
+        self.eta = QLabel("ETA: --")
+        self.session_timer = QLabel("Session Timer: 00:00")
+        self.live_cost = QLabel("Live Cost: ₹0.00")
+        self.live_progress = QProgressBar()
+        self.live_progress.setFormat("Charging %p%")
+        for w in [self.live_title, self.battery, self.speed, self.eta, self.session_timer, self.live_cost, self.live_progress]:
+            left.addWidget(w)
+        m_layout.addLayout(left, 2)
+        self.circular = CircularProgress()
+        m_layout.addWidget(self.circular, 1)
+        root.addWidget(monitor)
 
 
 class RevenuePage(QWidget):
@@ -94,18 +134,18 @@ class RevenuePage(QWidget):
         super().__init__()
         layout = QVBoxLayout(self)
         self.badge = QLabel("Rate Mode")
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Vehicle", "Energy (kWh)", "Cost (₹)", "Time"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Vehicle", "Energy (kWh)", "Rate", "Cost (₹)", "Time"])
         layout.addWidget(self.badge)
         layout.addWidget(self.table)
 
-    def refresh(self, mode):
-        self.badge.setText(mode)
+    def refresh(self, mode, rate):
+        self.badge.setText(f"{mode} • ₹{rate:.2f}/kWh")
         self.badge.setObjectName("badgePeak" if "Peak" in mode else "badgeOffpeak")
         rows = query("SELECT vehicle_number, energy, cost, charged_at FROM sessions ORDER BY id DESC LIMIT 20")
         self.table.setRowCount(len(rows))
         for r, row in enumerate(rows):
-            vals = [row["vehicle_number"], f"{row['energy']:.2f}", f"{row['cost']:.2f}", row["charged_at"]]
+            vals = [row["vehicle_number"], f"{row['energy']:.2f}", f"₹{(row['cost']/max(0.1,row['energy'])):.2f}", f"{row['cost']:.2f}", row["charged_at"]]
             for c, val in enumerate(vals):
                 self.table.setItem(r, c, QTableWidgetItem(val))
 
@@ -116,8 +156,11 @@ class DashboardWindow(QMainWindow):
         self.engine = engine
         self.user = user
         self.rates = RateService()
-        self.setWindowTitle("VoltOS • EV SaaS Dashboard")
-        self.resize(1500, 900)
+        self.sidebar_expanded = True
+        self.blink = False
+        self.elapsed_session = 0
+        self.setWindowTitle("VoltOS • EV Infrastructure Cloud")
+        self.resize(1560, 920)
         self._build_ui()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tick)
@@ -130,31 +173,31 @@ class DashboardWindow(QMainWindow):
 
         self.sidebar = QFrame()
         self.sidebar.setObjectName("sidebar")
-        self.sidebar.setMaximumWidth(280)
+        self.sidebar.setMaximumWidth(290)
         side = QVBoxLayout(self.sidebar)
         self.toggle_btn = QPushButton("☰")
         self.toggle_btn.clicked.connect(self.toggle_sidebar)
         self.avatar = QLabel("⚡")
         self.avatar.setObjectName("avatar")
         self.profile = QLabel(f"{self.user['username']}\n{self.user['role']}")
-        self.status = QLabel("Station: Online")
+        self.profile.setObjectName("profile")
+        self.status = QLabel("● Station Online")
+        self.status.setObjectName("online")
         self.clock = QLabel("--:--:--")
-        self.energy_badge = QLabel("Today's Energy: 0.0 kWh")
-        side.addWidget(self.toggle_btn)
-        side.addWidget(self.avatar)
-        side.addWidget(self.profile)
-        side.addWidget(self.status)
-        side.addWidget(self.clock)
-        side.addWidget(self.energy_badge)
+        self.energy_badge = QLabel("Energy Today: 0.0 kWh")
+        self.energy_badge.setObjectName("miniBadge")
+        for widget in [self.toggle_btn, self.avatar, self.profile, self.status, self.clock, self.energy_badge]:
+            side.addWidget(widget)
 
         self.menu_buttons = []
         for text, icon in [
-            ("Dashboard", "🏠"),
-            ("Vehicles", "🚘"),
-            ("Charging Sessions", "🔌"),
-            ("Revenue", "💰"),
-            ("Analytics", "📈"),
-            ("Settings", "⚙️"),
+            ("Dashboard", "⌁"),
+            ("Vehicles", "◈"),
+            ("Charging Sessions", "⚡"),
+            ("Revenue", "₹"),
+            ("Analytics", "◔"),
+            ("Reports", "☷"),
+            ("Settings", "⚙"),
         ]:
             btn = QPushButton(f"{icon}  {text}")
             btn.clicked.connect(lambda _=False, t=text: self.switch_page(t))
@@ -163,6 +206,7 @@ class DashboardWindow(QMainWindow):
             side.addWidget(btn)
         side.addStretch(1)
         logout = QPushButton("Logout")
+        logout.setObjectName("logout")
         logout.clicked.connect(self.close)
         side.addWidget(logout)
         shell.addWidget(self.sidebar)
@@ -174,8 +218,9 @@ class DashboardWindow(QMainWindow):
         self.charging = ChargingPage(self.engine, self.refresh_summary)
         self.revenue_page = RevenuePage()
         self.analytics = AnalyticsPage()
+        self.reports = ReportsPage()
         self.settings = SettingsPage()
-        for page in [self.overview, self.vehicles, self.charging, self.revenue_page, self.analytics, self.settings]:
+        for page in [self.overview, self.vehicles, self.charging, self.revenue_page, self.analytics, self.reports, self.settings]:
             self.pages.addWidget(page)
         body.addWidget(self.pages)
         shell.addLayout(body, 1)
@@ -185,9 +230,10 @@ class DashboardWindow(QMainWindow):
 
     def toggle_sidebar(self):
         w = self.sidebar.width()
-        target = 92 if w > 120 else 280
+        target = 96 if self.sidebar_expanded else 290
+        self.sidebar_expanded = not self.sidebar_expanded
         self.anim = QPropertyAnimation(self.sidebar, b"maximumWidth")
-        self.anim.setDuration(260)
+        self.anim.setDuration(280)
         self.anim.setStartValue(w)
         self.anim.setEndValue(target)
         self.anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
@@ -200,10 +246,10 @@ class DashboardWindow(QMainWindow):
             "Charging Sessions": 2,
             "Revenue": 3,
             "Analytics": 4,
-            "Settings": 5,
+            "Reports": 5,
+            "Settings": 6,
         }
-        idx = mapping[text]
-        self.pages.setCurrentIndex(idx)
+        self.pages.setCurrentIndex(mapping[text])
         for b in self.menu_buttons:
             b.setProperty("active", "true" if text in b.text() else "false")
             b.style().unpolish(b)
@@ -211,8 +257,8 @@ class DashboardWindow(QMainWindow):
         effect = QGraphicsOpacityEffect(self.pages.currentWidget())
         self.pages.currentWidget().setGraphicsEffect(effect)
         fade = QPropertyAnimation(effect, b"opacity")
-        fade.setDuration(220)
-        fade.setStartValue(0.15)
+        fade.setDuration(240)
+        fade.setStartValue(0.1)
         fade.setEndValue(1.0)
         fade.start()
         self._fade = fade
@@ -220,6 +266,8 @@ class DashboardWindow(QMainWindow):
     def tick(self):
         now = datetime.now()
         self.clock.setText(now.strftime("%d %b %Y  %H:%M:%S"))
+        self.blink = not self.blink
+        self.overview.active.sub.setText("● Live" if self.blink else "◌ Live")
         self.refresh_summary(self.engine.stats())
 
     def refresh_summary(self, stats):
@@ -234,7 +282,26 @@ class DashboardWindow(QMainWindow):
         self.overview.energy.value.setAnimatedValue(total_energy)
         self.overview.rate.value.setAnimatedValue(rate)
         used_percent = int(((len(stats["slots"]) - available) / max(1, len(stats["slots"]))) * 100)
-        self.overview.slot_progress.setValue(used_percent)
+        self.overview.live_progress.setValue(used_percent)
+        self.overview.circular.set_value(used_percent)
 
-        self.energy_badge.setText(f"Today's Energy: {total_energy:.2f} kWh")
-        self.revenue_page.refresh(mode)
+        active_slots = [slot for slot in stats["slots"] if slot["active"]]
+        if active_slots:
+            live = active_slots[0]
+            pct = int(live["percent"])
+            self.elapsed_session += 1
+            self.overview.battery.setText(f"Battery: {pct}%")
+            self.overview.speed.setText(f"Speed: {18 + (pct % 24):.1f} kW")
+            self.overview.eta.setText(f"ETA: {max(1, int((100 - pct) * 0.8))} mins")
+            self.overview.live_cost.setText(f"Live Cost: ₹{live['energy'] * rate:.2f}")
+            self.overview.session_timer.setText(f"Session Timer: {self.elapsed_session//60:02d}:{self.elapsed_session%60:02d}")
+        else:
+            self.elapsed_session = 0
+            self.overview.battery.setText("Battery: 0%")
+            self.overview.speed.setText("Speed: 0.0 kW")
+            self.overview.eta.setText("ETA: --")
+            self.overview.live_cost.setText("Live Cost: ₹0.00")
+            self.overview.session_timer.setText("Session Timer: 00:00")
+
+        self.energy_badge.setText(f"Energy Today: {total_energy:.2f} kWh")
+        self.revenue_page.refresh(mode, rate)
