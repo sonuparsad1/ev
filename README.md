@@ -23,7 +23,39 @@ ev_app/
     report.py
     database.py
     style.qss
+build_app.sh
 build_app.bat
+```
+
+## One-command build (Linux)
+
+Run this from repository root:
+
+```bash
+./build_app.sh
+```
+
+Output:
+- `ev_app/dist/EVChargingApp`
+
+## One full Linux command (no script)
+
+```bash
+cd /workspace/ev/ev_app && python3 -m pip install --upgrade pip && python3 -m pip install PyQt6 matplotlib pyinstaller bcrypt && gcc -shared -fPIC -o core.so core.c && python3 -m PyInstaller --onefile --windowed main.py --name EVChargingApp
+```
+
+## Linux fix for "Python was built without a shared library"
+
+If you get this PyInstaller error, use a distro Python with shared `libpython`:
+
+```bash
+sudo apt update && sudo apt install -y python3 python3-venv python3-dev build-essential && cd /workspace/ev && python3 -m venv .venv && . .venv/bin/activate && ./build_app.sh
+```
+
+Or explicitly choose another Python interpreter:
+
+```bash
+PYTHON_BIN=/usr/bin/python3 ./build_app.sh
 ```
 
 ## One-command build (Windows EXE)
@@ -34,37 +66,16 @@ Run this from repository root:
 build_app.bat
 ```
 
-This single command will:
-1. Install required Python packages.
-2. Compile `core.c` to `core.dll`.
-3. Build `EVChargingApp.exe` with PyInstaller.
-
 Output:
 - `ev_app\dist\EVChargingApp.exe`
 
-## Manual steps (if preferred)
+## Manual run (Linux)
 
-### 1) Compile C core
 ```bash
 cd ev_app
-gcc -shared -o core.dll core.c
-```
-
-### 2) Install dependencies
-```bash
-pip install PyQt6 matplotlib pyinstaller bcrypt
-```
-
-### 3) Start app
-```bash
-cd ev_app
-python main.py
-```
-
-### 4) Build Windows EXE
-```bash
-cd ev_app
-pyinstaller --onefile --windowed main.py --name EVChargingApp
+python3 -m pip install PyQt6 matplotlib bcrypt
+gcc -shared -fPIC -o core.so core.c
+python3 main.py
 ```
 
 ## Default admin
