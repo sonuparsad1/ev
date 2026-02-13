@@ -1,3 +1,4 @@
+import logging
 import random
 from datetime import datetime
 
@@ -52,6 +53,7 @@ class ChargingPage(QWidget):
         controls.addWidget(self.stop_btn)
         root.addLayout(controls)
         grid = QGridLayout()
+        grid.setSpacing(12)
         for i in range(6):
             card = ChargingCard(i + 1)
             self.cards.append(card)
@@ -65,38 +67,41 @@ class ChargingPage(QWidget):
         self.running = False
 
     def tick(self):
-        if self.running:
-            self.engine.update_charging(0.75)
-            self.engine.start_charging()
-        stats = self.engine.stats()
-        rate, mode = self.rates.current()
-        for data, card in zip(stats["slots"], self.cards):
-            active = data["active"] and self.running
-            pct = int(data["percent"])
-            vid = data["vehicle"]
-            card.status.setText("● Charging" if active else "Idle")
-            card.status.setObjectName("chargingLive" if active else "")
-            card.vehicle.setText(f"Vehicle: {vid}")
-            card.energy.setText(f"Energy: {data['energy']:.2f} kWh")
-            speed = random.uniform(18.0, 60.0) if active else 0.0
-            card.speed.setText(f"Speed: {speed:.1f} kW")
-            eta = max(0, int((100 - pct) * 0.9)) if active else 0
-            card.eta.setText(f"ETA: {eta} mins" if active else "ETA: --")
-            card.cost.setText(f"Cost: ₹{data['energy'] * rate:.2f} ({mode})")
-            card.progress.setValue(pct)
-            self.seconds[card.slot_id] = self.seconds.get(card.slot_id, 0) + (1 if active else 0)
-            s = self.seconds[card.slot_id]
-            card.timer.setText(f"Timer: {s//60:02d}:{s%60:02d}")
+        try:
+            if self.running:
+                self.engine.update_charging(0.75)
+                self.engine.start_charging()
+            stats = self.engine.stats()
+            rate, mode = self.rates.current()
+            for data, card in zip(stats["slots"], self.cards):
+                active = data["active"] and self.running
+                pct = int(data["percent"])
+                vid = data["vehicle"]
+                card.status.setText("● Charging" if active else "Idle")
+                card.status.setObjectName("chargingLive" if active else "")
+                card.vehicle.setText(f"Vehicle: {vid}")
+                card.energy.setText(f"Energy: {data['energy']:.2f} kWh")
+                speed = random.uniform(18.0, 60.0) if active else 0.0
+                card.speed.setText(f"Speed: {speed:.1f} kW")
+                eta = max(0, int((100 - pct) * 0.9)) if active else 0
+                card.eta.setText(f"ETA: {eta} mins" if active else "ETA: --")
+                card.cost.setText(f"Cost: ₹{data['energy'] * rate:.2f} ({mode})")
+                card.progress.setValue(pct)
+                self.seconds[card.slot_id] = self.seconds.get(card.slot_id, 0) + (1 if active else 0)
+                s = self.seconds[card.slot_id]
+                card.timer.setText(f"Timer: {s//60:02d}:{s%60:02d}")
 
-            prev = self.last_seen.get(card.slot_id)
-            if prev and prev["vehicle"] != "-" and not active and prev["active"]:
-                energy = prev["energy"]
-                cost, _, _ = self.rates.calculate(energy)
-                execute(
-                    "INSERT INTO sessions(vehicle_number,energy,cost,duration,charged_at) VALUES(?,?,?,?,?)",
-                    (prev["vehicle"], energy, cost, max(1, s / 60), datetime.now().isoformat(timespec="seconds")),
-                )
-                self.seconds[card.slot_id] = 0
-            self.last_seen[card.slot_id] = {**data, "active": active}
+                prev = self.last_seen.get(card.slot_id)
+                if prev and prev["vehicle"] != "-" and not active and prev["active"]:
+                    energy = prev["energy"]
+                    cost, _, _ = self.rates.calculate(energy)
+                    execute(
+                        "INSERT INTO sessions(vehicle_number,energy,cost,duration,charged_at) VALUES(?,?,?,?,?)",
+                        (prev["vehicle"], energy, cost, max(1, s / 60), datetime.now().isoformat(timespec="seconds")),
+                    )
+                    self.seconds[card.slot_id] = 0
+                self.last_seen[card.slot_id] = {**data, "active": active}
 
-        self.on_stats_update(stats)
+            self.on_stats_update(stats)
+        except Exception:
+            logging.exception("Charging tick failed")

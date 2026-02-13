@@ -18,6 +18,7 @@ DEFAULT_SETTINGS = {
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -51,6 +52,13 @@ def init_db():
                 cost REAL NOT NULL,
                 duration REAL NOT NULL,
                 charged_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS revenue_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                day TEXT NOT NULL,
+                revenue REAL NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS rate_history (

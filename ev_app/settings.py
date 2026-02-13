@@ -55,10 +55,21 @@ class SettingsPage(QWidget):
         self.theme_toggle.setChecked(get_setting("theme", "dark") == "light")
 
     def save(self):
-        set_setting("base_rate", self.base_rate.text())
-        set_setting("peak_rate", self.peak_rate.text())
-        set_setting("offpeak_rate", self.offpeak_rate.text())
-        set_setting("total_slots", self.total_slots.text())
+        try:
+            base = float(self.base_rate.text())
+            peak = float(self.peak_rate.text())
+            offpeak = float(self.offpeak_rate.text())
+            slots = int(self.total_slots.text())
+            if min(base, peak, offpeak) <= 0 or slots < 1:
+                raise ValueError("Values must be positive.")
+        except ValueError as exc:
+            QMessageBox.warning(self, "Invalid Settings", str(exc))
+            return
+
+        set_setting("base_rate", base)
+        set_setting("peak_rate", peak)
+        set_setting("offpeak_rate", offpeak)
+        set_setting("total_slots", slots)
         set_setting("peak_enabled", "1" if self.peak_enabled.isChecked() else "0")
         set_setting("theme", "light" if self.theme_toggle.isChecked() else "dark")
         QMessageBox.information(self, "Saved", "Settings updated")

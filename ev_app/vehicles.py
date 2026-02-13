@@ -1,5 +1,8 @@
+import logging
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -60,6 +63,10 @@ class VehiclePage(QWidget):
         self.table.setHorizontalHeaderLabels(
             ["Owner", "Vehicle", "Capacity", "Type", "Status", "Sessions", "Revenue", "Created", "History", "Edit", "Delete"]
         )
+        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         pager = QHBoxLayout()
         self.prev_btn = QPushButton("◀")
@@ -77,21 +84,28 @@ class VehiclePage(QWidget):
         root.addLayout(pager)
 
     def add_vehicle(self):
-        owner = self.owner.text().strip()
-        number = self.number.text().strip().upper()
-        cap = float(self.capacity.text() or 0)
-        ctype = self.type_box.currentText()
-        if not owner or not number or cap <= 0:
-            QMessageBox.warning(self, "Invalid", "Please fill all fields")
-            return
-        execute(
-            "INSERT INTO vehicles(owner_name,vehicle_number,battery_capacity,charging_type) VALUES(?,?,?,?)",
-            (owner, number, cap, ctype),
-        )
-        self.engine.register_vehicle(number, cap, ctype)
-        self.engine.enqueue_vehicle(number)
-        self.engine.start_charging()
-        self.load_data()
+        try:
+            owner = self.owner.text().strip()
+            number = self.number.text().strip().upper()
+            cap = float(self.capacity.text() or 0)
+            ctype = self.type_box.currentText()
+            if not owner or not number or cap <= 0:
+                QMessageBox.warning(self, "Invalid", "Please fill all fields")
+                return
+            execute(
+                "INSERT INTO vehicles(owner_name,vehicle_number,battery_capacity,charging_type) VALUES(?,?,?,?)",
+                (owner, number, cap, ctype),
+            )
+            self.engine.register_vehicle(number, cap, ctype)
+            self.engine.enqueue_vehicle(number)
+            self.engine.start_charging()
+            self.owner.clear()
+            self.number.clear()
+            self.capacity.clear()
+            self.load_data()
+        except Exception as exc:
+            logging.exception("Failed to register vehicle")
+            QMessageBox.critical(self, "Error", f"Could not register vehicle: {exc}")
 
     def _status_for(self, vehicle_number):
         for slot in self.engine.stats()["slots"]:
@@ -161,7 +175,7 @@ class VehiclePage(QWidget):
                     item = self._badge(val)
                 else:
                     item = QTableWidgetItem(val)
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 self.table.setItem(r, c, item)
 
             history_btn = QPushButton("🕘")
@@ -204,7 +218,7 @@ class VehiclePage(QWidget):
             table.setItem(r, 2, QTableWidgetItem(f"{row['duration']:.1f} min"))
             table.setItem(r, 3, QTableWidgetItem(row["charged_at"]))
         layout.addWidget(table)
-        dialog.resize(680, 360)
+        dialog.resize(700, 360)
         dialog.exec()
 
     def edit_vehicle(self, row):
@@ -219,12 +233,15 @@ class VehiclePage(QWidget):
         save = QPushButton("Save")
 
         def do_save():
-            execute(
-                "UPDATE vehicles SET owner_name=?, battery_capacity=?, charging_type=? WHERE id=?",
-                (owner.text().strip(), float(cap.text() or 0), ctype.currentText(), row["id"]),
-            )
-            dialog.accept()
-            self.load_data()
+            try:
+                execute(
+                    "UPDATE vehicles SET owner_name=?, battery_capacity=?, charging_type=? WHERE id=?",
+                    (owner.text().strip(), float(cap.text() or 0), ctype.currentText(), row["id"]),
+                )
+                dialog.accept()
+                self.load_data()
+            except Exception as exc:
+                QMessageBox.warning(dialog, "Invalid", f"Could not update: {exc}")
 
         save.clicked.connect(do_save)
         layout.addRow("Owner", owner)
