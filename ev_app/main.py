@@ -22,9 +22,16 @@ def ensure_default_admin():
     )
 
 
+def resource_path(name: str) -> Path:
+    if hasattr(sys, "_MEIPASS"):
+        return Path(getattr(sys, "_MEIPASS")) / name
+    return Path(__file__).resolve().parent / name
+
+
 def apply_styles(app):
-    qss = Path(__file__).resolve().parent / "style.qss"
-    app.setStyleSheet(qss.read_text(encoding="utf-8"))
+    qss = resource_path("style.qss")
+    if qss.exists():
+        app.setStyleSheet(qss.read_text(encoding="utf-8"))
 
 
 def main():

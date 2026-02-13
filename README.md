@@ -41,7 +41,35 @@ Output:
 ## One full Linux command (no script)
 
 ```bash
-cd /workspace/ev/ev_app && python3 -m pip install --upgrade pip && python3 -m pip install PyQt6 matplotlib pyinstaller bcrypt && gcc -shared -fPIC -o core.so core.c && python3 -m PyInstaller --onefile --windowed main.py --name EVChargingApp
+cd /workspace/ev/ev_app && python3 -m pip install --upgrade pip && python3 -m pip install PyQt6 matplotlib pyinstaller bcrypt && gcc -shared -fPIC -o core.so core.c && python3 -m PyInstaller --onefile --windowed --add-data "style.qss:." --add-binary "core.so:." main.py --name EVChargingApp
+```
+
+## One-command build (Windows EXE)
+
+Run this from repository root:
+
+```bat
+build_app.bat
+```
+
+Output:
+- `ev_app\dist\EVChargingApp.exe`
+
+## Windows fix for "Unable to find ... core.dll when adding binary and data files"
+
+Run build from repo root with script (it `cd`s into `ev_app`, compiles `core.dll`, then bundles it):
+
+```bat
+build_app.bat
+```
+
+If running manually, run from `ev_app` folder so `core.dll` path is valid:
+
+```bat
+cd /d C:\path\to\ev-main\ev_app
+python -m pip install PyQt6 matplotlib pyinstaller bcrypt
+gcc -shared -o core.dll core.c
+pyinstaller --onefile --windowed --add-data "style.qss;." --add-binary "core.dll;." main.py --name EVChargingApp
 ```
 
 ## Linux fix for "Python was built without a shared library"
@@ -57,17 +85,6 @@ Or explicitly choose another Python interpreter:
 ```bash
 PYTHON_BIN=/usr/bin/python3 ./build_app.sh
 ```
-
-## One-command build (Windows EXE)
-
-Run this from repository root:
-
-```bat
-build_app.bat
-```
-
-Output:
-- `ev_app\dist\EVChargingApp.exe`
 
 ## Manual run (Linux)
 

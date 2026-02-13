@@ -9,7 +9,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 check_shared_python() {
   "$PYTHON_BIN" - <<'PY'
-import os, sysconfig, pathlib
+import sysconfig, pathlib
 libname = sysconfig.get_config_var("LDLIBRARY")
 libdir = sysconfig.get_config_var("LIBDIR")
 if not libname or not libdir:
@@ -40,7 +40,12 @@ echo "Detected shared library: $SHARED_LIB_PATH"
 
 gcc -shared -fPIC -o core.so core.c
 
-"$PYTHON_BIN" -m PyInstaller --onefile --windowed main.py --name EVChargingApp
+if [[ ! -f core.so ]]; then
+  echo "ERROR: core.so build failed."
+  exit 1
+fi
+
+"$PYTHON_BIN" -m PyInstaller --onefile --windowed --add-data "style.qss:." --add-binary "core.so:." main.py --name EVChargingApp
 
 echo
 printf 'Build complete: %s\n' "$APP_DIR/dist/EVChargingApp"

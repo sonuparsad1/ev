@@ -5,13 +5,19 @@ from pathlib import Path
 
 class CoreEngine:
     def __init__(self):
-        base = Path(__file__).resolve().parent
         if sys.platform.startswith("win"):
-            lib = base / "core.dll"
+            lib_name = "core.dll"
         else:
-            lib = base / "core.so"
+            lib_name = "core.so"
+        lib = self._resource_path(lib_name)
         self.core = ctypes.CDLL(str(lib))
         self._configure()
+
+    @staticmethod
+    def _resource_path(name: str) -> Path:
+        if hasattr(sys, "_MEIPASS"):
+            return Path(getattr(sys, "_MEIPASS")) / name
+        return Path(__file__).resolve().parent / name
 
     def _configure(self):
         self.core.register_vehicle.argtypes = [ctypes.c_char_p, ctypes.c_double, ctypes.c_int]
