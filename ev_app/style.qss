@@ -5,15 +5,15 @@ QWidget {
     font-size: 13px;
 }
 
-QMainWindow, QStackedWidget, QListWidget {
-    background: transparent;
+QMainWindow, QStackedWidget {
+    background: qradialgradient(cx:0.2, cy:0.0, radius:1.2, fx:0.1, fy:0.1,
+      stop:0 #15213d, stop:1 #070b15);
 }
 
 QFrame#sidebar {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 rgba(27,34,52,0.82), stop:1 rgba(14,20,34,0.9));
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 20px;
+    background: rgba(15,22,38,0.86);
+    border: 1px solid rgba(125,171,255,0.25);
+    border-radius: 22px;
 }
 
 QLabel#avatar {
@@ -22,12 +22,20 @@ QLabel#avatar {
     max-width: 64px;
     max-height: 64px;
     border-radius: 32px;
-    background: qradialgradient(cx:0.5, cy:0.5, radius:0.8, fx:0.4, fy:0.2,
-      stop:0 #47f0c3, stop:1 #26374f);
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.8, fx:0.4, fy:0.2, stop:0 #47f0c3, stop:1 #26374f);
     color: #08131f;
     font-size: 28px;
     font-weight: 800;
     qproperty-alignment: AlignCenter;
+}
+
+QLabel#profile { font-weight: 700; }
+QLabel#online { color: #7dffb8; font-weight: 700; }
+QLabel#miniBadge {
+    background: rgba(71,240,195,0.12);
+    border: 1px solid rgba(71,240,195,0.45);
+    border-radius: 12px;
+    padding: 8px;
 }
 
 QPushButton {
@@ -37,13 +45,17 @@ QPushButton {
     border: 1px solid rgba(115,142,199,0.45);
 }
 QPushButton:hover {
-    background: rgba(76,98,154,0.72);
+    background: rgba(76,98,154,0.8);
 }
 QPushButton#menuBtn[active="true"] {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #39d8b2, stop:1 #4a8dff);
-    color: #071120;
+    border-left: 3px solid #43e0b7;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1f384f, stop:1 #203459);
+    color: #abffe9;
     font-weight: 700;
-    padding-left: 18px;
+}
+QPushButton#logout {
+    background: rgba(255,84,122,0.25);
+    border: 1px solid rgba(255,84,122,0.5);
 }
 
 QLineEdit, QComboBox, QTableWidget {
@@ -52,14 +64,14 @@ QLineEdit, QComboBox, QTableWidget {
     border-radius: 10px;
     padding: 8px;
 }
+QTableWidget::item:hover { background: rgba(74,141,255,0.18); }
 
-QFrame#statCard, ChargingCard {
+QFrame#statCard, QFrame#panel {
     background: rgba(255,255,255,0.055);
     border: 1px solid rgba(255,255,255,0.14);
     border-radius: 16px;
 }
 QFrame#statCard:hover {
-    margin-top: -2px;
     border: 1px solid rgba(71,240,195,0.45);
 }
 
@@ -68,13 +80,9 @@ QLabel#metricValue {
     font-weight: 700;
     color: #47f0c3;
 }
-QLabel#subtle {
-    color: #94a7ce;
-}
-QLabel#chargingLive {
-    color: #ff6f91;
-    font-weight: 700;
-}
+QLabel#subtle { color: #94a7ce; }
+QLabel#sectionTitle { font-size: 18px; font-weight: 700; }
+QLabel#chargingLive { color: #ff6f91; font-weight: 700; }
 
 QLabel#badgePeak {
     background: rgba(255,90,90,0.25);
@@ -96,6 +104,5 @@ QProgressBar {
 }
 QProgressBar::chunk {
     border-radius: 8px;
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #3dd9b3, stop:1 #4fa3ff);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3dd9b3, stop:1 #4fa3ff);
 }
