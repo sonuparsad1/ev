@@ -15,3 +15,8 @@ build.bat
 ```
 
 This compiles the app and generates `EVChargingApp.exe`.
+
+
+## Login credentials
+- **Admin login:** `admin` / `admin123`
+- **Vehicle owner login:** Username = Owner Name, Password = Vehicle Number

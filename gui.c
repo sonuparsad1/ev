@@ -321,7 +321,7 @@ static LRESULT CALLBACK LoginWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
                         MessageBoxA(hwnd, "Too many failed attempts.", "Authentication", MB_OK | MB_ICONERROR);
                         PostQuitMessage(0);
                     } else {
-                        MessageBoxA(hwnd, "Invalid credentials. Password should be Vehicle Number.", "Authentication", MB_OK | MB_ICONWARNING);
+                        MessageBoxA(hwnd, "Invalid credentials. Use admin/admin123 or Owner Name + Vehicle Number.", "Authentication", MB_OK | MB_ICONWARNING);
                     }
                 }
             }
